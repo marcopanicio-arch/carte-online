@@ -47,8 +47,19 @@
 }
 .barInfo {
   justify-self: end;
-  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.9;
   font-variant-numeric: tabular-nums;
+}
+.muteBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  padding: 6px 2px 6px 6px;
+  cursor: pointer;
+  line-height: 1;
 }
 
 /* Avversario */
@@ -67,8 +78,6 @@
 .oppCard {
   width: var(--opp-w);
   margin: 0 -6px;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
-  animation: drawTop 0.35s ease-out;
 }
 .label {
   font-size: 12px;
@@ -97,14 +106,22 @@
   left: calc(var(--table-w) * 0.45);
   top: calc(var(--table-w) * 0.25);
   rotate: 90deg;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+/* Spessore del mazzo: qualche bordo sfalsato dietro la carta coperta. */
+.deck > div {
+  box-shadow:
+    inset 0 0 0 1px #6e1418,
+    2px 2px 0 #e9dfc6,
+    3px 3px 0 #b9a77f,
+    5px 5px 0 #e9dfc6,
+    6px 6px 0 #b9a77f,
+    4px 8px 10px rgba(0, 0, 0, 0.4);
 }
 .deck {
   position: absolute;
   width: var(--table-w);
   left: 0;
   top: 0;
-  filter: drop-shadow(2px 2px 0 #d8ccb0) drop-shadow(2px 2px 0 #c4b590) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
 }
 .deckCount {
   position: absolute;
@@ -135,7 +152,6 @@
 .trickCard {
   position: absolute;
   width: var(--table-w);
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
   transition:
     translate 0.45s ease-in,
     opacity 0.45s ease-in;
@@ -144,13 +160,11 @@
   top: 0;
   left: calc(50% - var(--table-w) - 5px);
   rotate: -4deg;
-  animation: inTop 0.35s ease-out;
 }
 .fromBottom {
   bottom: 0;
   left: calc(50% + 5px);
   rotate: 4deg;
-  animation: inBottom 0.35s ease-out;
 }
 .toTop {
   translate: 0 -160%;
@@ -161,30 +175,6 @@
   opacity: 0;
 }
 
-@keyframes inTop {
-  from {
-    translate: 0 -140%;
-    opacity: 0;
-  }
-}
-@keyframes inBottom {
-  from {
-    translate: 0 140%;
-    opacity: 0;
-  }
-}
-@keyframes drawTop {
-  from {
-    translate: -60vw 20vh;
-    opacity: 0;
-  }
-}
-@keyframes drawBottom {
-  from {
-    translate: -60vw -30vh;
-    opacity: 0;
-  }
-}
 
 /* Messaggio di stato */
 .message {
@@ -216,14 +206,12 @@
   border: none;
   background: none;
   cursor: default;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
   transition: translate 0.15s ease-out;
-  animation: drawBottom 0.4s ease-out;
   -webkit-tap-highlight-color: transparent;
 }
 .myCard:disabled {
   opacity: 1;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4)) brightness(0.88);
+  color: inherit;
 }
 .playable {
   cursor: pointer;

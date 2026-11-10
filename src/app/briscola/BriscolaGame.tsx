@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useReducer } from "react";
 import { preloadCards } from "@/components/PlayingCard";
 import BriscolaTable, { vibrate } from "./BriscolaTable";
+import { sounds } from "@/lib/sound";
 import { randomSeed } from "@/lib/carte/cards";
 import { type Difficulty, chooseCard } from "@/lib/briscola/ai";
 import {
@@ -104,6 +105,7 @@ export default function BriscolaGame() {
     if (!game || game.phase !== "playing" || game.turn !== CPU) return;
     const t = setTimeout(() => {
       const card = chooseCard(game, CPU, state.difficulty);
+      sounds.play();
       dispatch({ type: "play", player: CPU, cardId: card.id });
     }, CPU_DELAY);
     return () => clearTimeout(t);
@@ -118,6 +120,23 @@ export default function BriscolaGame() {
     );
     return () => clearTimeout(t);
   }, [game, state.collecting]);
+
+  // Suoni: presa con punti e fine partita.
+  const phase = game?.phase;
+  useEffect(() => {
+    if (!game) return;
+    if (phase === "trickComplete" && game.trickWinner === HUMAN) {
+      const pts = game.table.reduce((s, p) => s + points(p.card), 0);
+      if (pts > 0) setTimeout(() => sounds.take(pts), 350);
+    }
+    if (phase === "finished") {
+      const w = winningTeam(game);
+      if (w === null) sounds.tie();
+      else if (w === HUMAN) sounds.win();
+      else sounds.lose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambio di fase
+  }, [phase, game?.trickCount]);
 
   useEffect(() => save("briscola:stats", state.stats), [state.stats]);
   useEffect(() => save("briscola:prefs", { difficulty: state.difficulty }), [state.difficulty]);
@@ -136,6 +155,7 @@ export default function BriscolaGame() {
   const onPlay = (cardId: string) => {
     if (!myTurn) return;
     vibrate();
+    sounds.play();
     dispatch({ type: "play", player: HUMAN, cardId });
   };
 
@@ -164,6 +184,7 @@ export default function BriscolaGame() {
       trump={game.trump}
       plays={game.table.map((p) => ({ mine: p.player === HUMAN, card: p.card }))}
       collectingTo={state.collecting ? (game.trickWinner === HUMAN ? "me" : "opp") : null}
+      drawFirst={game.leader === HUMAN ? "me" : "opp"}
       message={message}
       myTurn={myTurn}
       myHand={game.hands[HUMAN]}

@@ -13,10 +13,15 @@
   object-fit: contain;
   pointer-events: none;
 }
+/* Ombra con box-shadow (non filter): leggera e senza aloni che restano sullo schermo. */
 .face {
   padding: 2.5%;
-  box-shadow: inset 0 0 0 1px #c9b892;
+  box-shadow:
+    inset 0 0 0 1px #c9b892,
+    0 3px 8px rgba(0, 0, 0, 0.35);
 }
 .back {
-  box-shadow: inset 0 0 0 1px #6e1418;
+  box-shadow:
+    inset 0 0 0 1px #6e1418,
+    0 3px 8px rgba(0, 0, 0, 0.35);
 }

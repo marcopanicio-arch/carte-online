@@ -8,6 +8,7 @@ import type { Card } from "@/lib/carte/cards";
 import { points } from "@/lib/briscola/engine";
 import type { MatchRow, PublicState } from "@/lib/briscola/online";
 import { api, supabase } from "@/lib/supabase/client";
+import { sounds } from "@/lib/sound";
 import BriscolaTable, { type TablePlay, vibrate } from "../../../briscola/BriscolaTable";
 import tableStyles from "../../../briscola/briscola.module.css";
 import { type Profile, useOnline } from "../../OnlineProvider";
@@ -152,6 +153,36 @@ export default function OnlineMatchPage() {
     };
   }, [showingLast, lastTrickNo]);
 
+  // Suoni: carta dell'avversario, mia presa, fine partita.
+  const seatNow = match && me ? (match.player0 === me ? 0 : 1) : 0;
+  const oppPlays = pub ? pub.trickCount + (pub.table.some((p) => p.player !== seatNow) ? 1 : 0) : 0;
+  const prevOppPlays = useRef<number | null>(null);
+  const hasPub = Boolean(pub);
+  useEffect(() => {
+    if (!hasPub) return;
+    if (prevOppPlays.current !== null && oppPlays > prevOppPlays.current) sounds.play();
+    prevOppPlays.current = oppPlays;
+  }, [oppPlays, hasPub]);
+  useEffect(() => {
+    if (!showingLast || !lastTrick || lastTrick.winner !== seatNow) return;
+    const pts = lastTrick.plays.reduce((s, p) => s + points(p.card), 0);
+    if (pts > 0) setTimeout(() => sounds.take(pts), 350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per mano
+  }, [showingLast, lastTrickNo]);
+  const finishedNow = match?.status === "finished" && !showingLast;
+  const prevFinished = useRef<boolean | null>(null);
+  const loaded = Boolean(match);
+  useEffect(() => {
+    if (!loaded) return;
+    if (prevFinished.current === false && finishedNow && match) {
+      if (match.winner === null) sounds.tie();
+      else if (match.winner === seatNow) sounds.win();
+      else sounds.lose();
+    }
+    prevFinished.current = finishedNow;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo quando la partita finisce
+  }, [finishedNow, loaded]);
+
   if (notFound) {
     return (
       <main className={styles.page}>
@@ -212,6 +243,7 @@ export default function OnlineMatchPage() {
     const card = hand.find((c) => c.id === cardId);
     if (!myTurn || !card) return;
     vibrate();
+    sounds.play();
     setError(null);
     setPendingCard(card);
     setHand((h) => h.filter((c) => c.id !== cardId));
@@ -250,6 +282,7 @@ export default function OnlineMatchPage() {
       trump={pub.trump}
       plays={plays}
       collectingTo={showingLast && collecting && lastTrick ? (lastTrick.winner === seat ? "me" : "opp") : null}
+      drawFirst={lastTrick ? (lastTrick.winner === seat ? "me" : "opp") : pub.turn === seat ? "me" : "opp"}
       message={error ?? message}
       myTurn={myTurn}
       myHand={shownHand}

@@ -2,8 +2,10 @@
 
 // Il tavolo da gioco, solo grafica: lo usano sia la partita contro il computer sia quella online.
 
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
+import MuteButton from "@/components/MuteButton";
 import PlayingCard from "@/components/PlayingCard";
+import { useCardMotion } from "@/components/useCardMotion";
 import type { Card, Suit } from "@/lib/carte/cards";
 import styles from "./briscola.module.css";
 
@@ -28,6 +30,8 @@ export interface BriscolaTableProps {
   plays: TablePlay[];
   /** Verso chi vanno le carte raccolte, mentre la mano viene portata via. */
   collectingTo: "me" | "opp" | null;
+  /** Chi pesca per primo (chi ha preso l'ultima mano). */
+  drawFirst: "me" | "opp";
   message: string;
   myTurn: boolean;
   myHand: Card[];
@@ -36,22 +40,28 @@ export interface BriscolaTableProps {
 }
 
 export default function BriscolaTable(p: BriscolaTableProps) {
+  const rootRef = useRef<HTMLElement>(null);
+  useCardMotion(rootRef, { dealOrder: p.drawFirst === "me" ? "me-first" : "opp-first" });
+
   const collectClass = p.collectingTo === "me" ? styles.toBottom : p.collectingTo === "opp" ? styles.toTop : "";
 
   return (
-    <main className={styles.table}>
+    <main className={styles.table} ref={rootRef}>
       <header className={styles.bar}>
         <button className={styles.barBtn} onClick={p.onExit}>
           ‹ {p.exitLabel ?? "Esci"}
         </button>
         <span className={styles.barTitle}>{p.title}</span>
-        <span className={styles.barInfo}>{p.info}</span>
+        <span className={styles.barInfo}>
+          {p.info}
+          <MuteButton className={styles.muteBtn} />
+        </span>
       </header>
 
       <section className={styles.opponent} aria-label={`Mano di ${p.oppName}`}>
-        <div className={styles.oppHand}>
+        <div className={styles.oppHand} data-anchor="opp">
           {Array.from({ length: p.oppCount }, (_, i) => (
-            <div key={i} className={styles.oppCard}>
+            <div key={i} className={styles.oppCard} data-flip={`opp-${i}`} data-from="deck" data-deal data-owner="opp">
               <PlayingCard card={null} />
             </div>
           ))}
@@ -69,12 +79,10 @@ export default function BriscolaTable(p: BriscolaTableProps) {
               <PlayingCard card={p.briscola} />
             </div>
           )}
-          {p.deckCount > 1 && (
-            <div className={styles.deck}>
-              <PlayingCard card={null} />
-              <span className={styles.deckCount}>{p.deckCount}</span>
-            </div>
-          )}
+          <div className={styles.deck} data-anchor="deck" style={{ visibility: p.deckCount > 1 ? "visible" : "hidden" }}>
+            <PlayingCard card={null} />
+            <span className={styles.deckCount}>{p.deckCount}</span>
+          </div>
           <div className={styles.trumpTag}>
             Briscola: <strong>{p.trump}</strong>
           </div>
@@ -84,6 +92,8 @@ export default function BriscolaTable(p: BriscolaTableProps) {
           {p.plays.map((play) => (
             <div
               key={play.card.id}
+              data-flip={play.card.id}
+              data-from={play.mine ? undefined : "opp"}
               className={`${styles.trickCard} ${play.mine ? styles.fromBottom : styles.fromTop} ${collectClass}`}
             >
               <PlayingCard card={play.card} />
@@ -100,6 +110,10 @@ export default function BriscolaTable(p: BriscolaTableProps) {
         {p.myHand.map((c) => (
           <button
             key={c.id}
+            data-flip={c.id}
+            data-from="deck"
+            data-deal
+            data-owner="me"
             className={`${styles.myCard} ${p.myTurn ? styles.playable : ""}`}
             onClick={() => p.onPlay(c.id)}
             disabled={!p.myTurn}
