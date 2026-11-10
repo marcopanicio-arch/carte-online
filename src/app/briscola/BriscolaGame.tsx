@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useReducer } from "react";
-import PlayingCard from "@/components/PlayingCard";
+import PlayingCard, { preloadCards } from "@/components/PlayingCard";
 import { randomSeed } from "@/lib/carte/cards";
 import { type Difficulty, chooseCard } from "@/lib/briscola/ai";
 import {
@@ -87,6 +87,8 @@ function init(): State {
 export default function BriscolaGame() {
   const [state, dispatch] = useReducer(reducer, undefined, init);
   const { game } = state;
+
+  useEffect(() => preloadCards(), []);
 
   // Turno del computer.
   useEffect(() => {

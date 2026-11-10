@@ -1,6 +1,8 @@
 // Service worker: rende il sito installabile e giocabile anche senza rete.
-const CACHE = "carte-v1";
-const PRECACHE = ["/", "/briscola", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "carte-v2";
+const SUITS = ["denari", "coppe", "spade", "bastoni"];
+const CARDS = SUITS.flatMap((s) => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((r) => `/carte/${s}-${r}.webp`));
+const PRECACHE = ["/", "/briscola", "/manifest.webmanifest", "/icon.svg", "/carte/retro.webp", ...CARDS];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -20,8 +22,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // File con hash nel nome: non cambiano mai, prima la cache.
-  if (url.pathname.startsWith("/_next/static/")) {
+  // File con hash nel nome e immagini delle carte: non cambiano, prima la cache.
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/carte/")) {
     event.respondWith(
       caches.match(req).then(
         (hit) =>

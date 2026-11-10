@@ -62,7 +62,7 @@
 .oppHand {
   display: flex;
   justify-content: center;
-  min-height: calc(var(--opp-w) * 1.6);
+  min-height: calc(var(--opp-w) * 1.66);
 }
 .oppCard {
   width: var(--opp-w);
@@ -207,7 +207,7 @@
   display: flex;
   justify-content: center;
   gap: 10px;
-  min-height: calc(var(--hand-w) * 1.6 + 14px);
+  min-height: calc(var(--hand-w) * 1.66 + 14px);
   padding-top: 14px;
 }
 .myCard {

@@ -1,0 +1,22 @@
+.card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 300 / 496;
+  border-radius: 8% / 4.8%;
+  overflow: hidden;
+  background: #fff;
+}
+.card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.face {
+  padding: 2.5%;
+  box-shadow: inset 0 0 0 1px #c9b892;
+}
+.back {
+  box-shadow: inset 0 0 0 1px #6e1418;
+}

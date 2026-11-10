@@ -40,6 +40,7 @@ export default function Home() {
         Per averla come un&apos;app: dal browser del telefono tocca <strong>Condividi</strong> o il menu{" "}
         <strong>⋮</strong>, poi <strong>Aggiungi a schermata Home</strong>.
       </p>
+      <p className={styles.credit}>Carte napoletane: Wikimedia Commons, pubblico dominio.</p>
     </main>
   );
 }
