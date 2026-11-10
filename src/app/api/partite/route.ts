@@ -44,12 +44,23 @@ export async function POST(req: Request) {
   }
 }
 
-async function loadMatch(id: string | undefined): Promise<MatchRow> {
+type LoadedMatch = MatchRow & { secret: GameState | null };
+
+/** Partita e stato segreto in una sola richiesta al database. */
+async function loadMatch(id: string | undefined): Promise<LoadedMatch> {
   if (!id || !UUID.test(id)) throw new HttpError(400, "Partita mancante");
-  const { data, error } = await supabaseAdmin().from("matches").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabaseAdmin()
+    .from("matches")
+    .select("*, match_secrets(state)")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw error;
   if (!data) throw new HttpError(404, "Partita non trovata");
-  return data as MatchRow;
+  const { match_secrets: sec, ...row } = data as MatchRow & {
+    match_secrets: { state: GameState } | { state: GameState }[] | null;
+  };
+  const secret = Array.isArray(sec) ? (sec[0]?.state ?? null) : (sec?.state ?? null);
+  return { ...row, secret };
 }
 
 function seatOf(match: MatchRow, me: string): 0 | 1 {
@@ -136,14 +147,9 @@ async function play(me: string, matchId: string | undefined, cardId: string | un
   const seat = seatOf(match, me);
   if (match.status !== "active") throw new HttpError(409, "La partita non è in corso");
 
-  const { data: secret, error } = await supabaseAdmin()
-    .from("match_secrets")
-    .select("state")
-    .eq("match_id", match.id)
-    .single();
-  if (error) throw error;
+  if (!match.secret) throw new HttpError(500, "Stato della partita mancante");
 
-  let state = playCard(secret.state as GameState, seat, cardId);
+  let state = playCard(match.secret, seat, cardId);
   let lastTrick = match.public?.lastTrick ?? null;
   if (state.phase === "trickComplete") {
     // La mano si chiude subito sul server; i client la mostrano ancora un attimo grazie a lastTrick.

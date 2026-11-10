@@ -13,11 +13,14 @@ export function supabaseAdmin(): SupabaseClient {
   return admin;
 }
 
-/** Utente che fa la richiesta, dal token "Authorization: Bearer ...". */
+/**
+ * Utente che fa la richiesta, dal token "Authorization: Bearer ...".
+ * getClaims verifica la firma localmente (chiavi pubbliche in cache), senza chiamare ogni volta Supabase.
+ */
 export async function requestUser(req: Request): Promise<string | null> {
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
-  const { data, error } = await supabaseAdmin().auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
+  const { data, error } = await supabaseAdmin().auth.getClaims(token);
+  if (error || !data?.claims.sub) return null;
+  return data.claims.sub;
 }

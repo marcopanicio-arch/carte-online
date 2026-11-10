@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MatchRow } from "@/lib/briscola/online";
 import { api, supabase, supabaseConfigured } from "@/lib/supabase/client";
 import { type Profile, useOnline } from "./OnlineProvider";
@@ -27,6 +27,8 @@ export default function Lobby() {
   const [matches, setMatches] = useState<LobbyMatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Inviti che ho mandato: quando uno diventa "active" vuol dire che è stato accettato.
+  const myInvites = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (ready && !session && supabaseConfigured) router.replace("/online/accedi");
@@ -48,9 +50,14 @@ export default function Lobby() {
         .order("created_at", { ascending: false }),
     ]).then(([f, m]) => {
       if (f.data) setFriends(f.data as unknown as FriendRow[]);
-      if (m.data) setMatches(m.data as unknown as LobbyMatch[]);
+      if (!m.data) return;
+      const rows = m.data as unknown as LobbyMatch[];
+      setMatches(rows);
+      const accepted = rows.find((r) => r.status === "active" && myInvites.current.has(r.id));
+      myInvites.current = new Set(rows.filter((r) => r.status === "invited" && r.player0 === me).map((r) => r.id));
+      if (accepted) router.push(`/online/partita/${accepted.id}`);
     });
-  }, []);
+  }, [me, router]);
 
   // Dati iniziali + aggiornamenti in tempo reale su amicizie e partite.
   useEffect(() => {
@@ -69,7 +76,18 @@ export default function Lobby() {
         reload();
       })
       .subscribe();
+
+    // Rete di sicurezza se un aggiornamento in tempo reale va perso.
+    const t = setInterval(reload, 5000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
     return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
       sb.removeChannel(channel);
     };
   }, [me, reload, router]);

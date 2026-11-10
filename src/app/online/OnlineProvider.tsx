@@ -21,6 +21,7 @@ interface OnlineCtx {
 }
 
 const Ctx = createContext<OnlineCtx | null>(null);
+const PRESENCE_GRACE_MS = 12000;
 
 export function useOnline(): OnlineCtx {
   const ctx = useContext(Ctx);
@@ -53,6 +54,22 @@ export default function OnlineProvider({ children }: { children: ReactNode }) {
     const sb = supabase();
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
+    // Chi sparisce dalla presenza resta "connesso" per qualche secondo: evita lo sfarfallio
+    // quando un telefono perde la rete per un attimo.
+    const lastSeen = new Map<string, { profile: Profile; at: number }>();
+    const publish = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const present = channel ? new Set(Object.keys(channel.presenceState())) : new Set<string>();
+      const map = new Map<string, Profile>();
+      for (const [id, v] of lastSeen) {
+        if (present.has(id)) v.at = now;
+        if (now - v.at < PRESENCE_GRACE_MS) map.set(id, v.profile);
+        else lastSeen.delete(id);
+      }
+      setOnline(map);
+    };
+    const sweep = setInterval(publish, 4000);
 
     sb.from("profiles")
       .select("id, username")
@@ -65,11 +82,11 @@ export default function OnlineProvider({ children }: { children: ReactNode }) {
         channel
           .on("presence", { event: "sync" }, () => {
             const state = channel!.presenceState<{ username: string }>();
-            const map = new Map<string, Profile>();
+            const now = Date.now();
             for (const [id, metas] of Object.entries(state)) {
-              if (metas[0]) map.set(id, { id, username: metas[0].username });
+              if (metas[0]) lastSeen.set(id, { profile: { id, username: metas[0].username }, at: now });
             }
-            setOnline(map);
+            publish();
           })
           .subscribe((status) => {
             if (status === "SUBSCRIBED") channel!.track({ username: data.username });
@@ -78,6 +95,7 @@ export default function OnlineProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      clearInterval(sweep);
       if (channel) sb.removeChannel(channel);
       setOnline(new Map());
       setProfile(null);

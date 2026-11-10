@@ -15,13 +15,17 @@ import styles from "../../online.module.css";
 
 const SHOW_TRICK = 900;
 const COLLECT_ANIM = 450;
+/** Controllo di riserva: se un aggiornamento in tempo reale va perso, lo recuperiamo entro pochi secondi. */
+const POLL_MS = 2500;
+/** L'avversario risulta "non connesso" solo dopo un'assenza prolungata, non per un attimo di rete. */
+const OFFLINE_GRACE_MS = 12000;
 
 type FullMatch = MatchRow & { p0: Profile; p1: Profile };
 
 export default function OnlineMatchPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { ready, session } = useOnline();
+  const { ready, session, online } = useOnline();
   const me = session?.user.id ?? null;
 
   const [match, setMatch] = useState<FullMatch | null>(null);
@@ -29,11 +33,13 @@ export default function OnlineMatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [pendingCard, setPendingCard] = useState<Card | null>(null);
-  const [oppHere, setOppHere] = useState(false);
+  // Si parte ottimisti: se l'avversario non c'è, lo dirà la presenza dopo il periodo di tolleranza.
+  const [oppHere, setOppHere] = useState(true);
   // Numero dell'ultima mano chiusa che ho già visto portare via.
   const [seenTrick, setSeenTrick] = useState<number | null>(null);
   const [collecting, setCollecting] = useState(false);
   const versionRef = useRef(-1);
+  const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => preloadCards(), []);
 
@@ -54,11 +60,40 @@ export default function OnlineMatchPage() {
       });
   }, [id, me]);
 
+  /** Applica uno stato della partita solo se è più recente di quello che ho. Ritorna true se l'ha applicato. */
   const applyMatch = useCallback((row: Partial<MatchRow>) => {
-    if (row.version === undefined || row.version <= versionRef.current) return;
+    if (row.version === undefined || row.version <= versionRef.current) return false;
     versionRef.current = row.version;
     setMatch((prev) => (prev ? { ...prev, ...row } : prev));
+    return true;
   }, []);
+
+  const refresh = useCallback(() => {
+    supabase()
+      .from("matches")
+      .select("status, public, version, winner, result")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && applyMatch(data as Partial<MatchRow>)) loadHand();
+      });
+  }, [id, applyMatch, loadHand]);
+
+  // Rete di sicurezza: controllo periodico e al ritorno sull'app (i telefoni sospendono le pagine in background).
+  useEffect(() => {
+    if (!me) return;
+    const t = setInterval(refresh, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [me, refresh]);
 
   // Caricamento iniziale e aggiornamenti in tempo reale della partita.
   useEffect(() => {
@@ -80,16 +115,20 @@ export default function OnlineMatchPage() {
     const channel = sb
       .channel(`partita:${id}`, { config: { presence: { key: me } } })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${id}` }, (payload) => {
-        applyMatch(payload.new as MatchRow);
-        loadHand();
+        if (applyMatch(payload.new as MatchRow)) loadHand();
       })
       .on("presence", { event: "sync" }, () => {
-        setOppHere(Object.keys(channel.presenceState()).some((k) => k !== me));
+        const here = Object.keys(channel.presenceState()).some((k) => k !== me);
+        if (offlineTimer.current) clearTimeout(offlineTimer.current);
+        offlineTimer.current = null;
+        if (here) setOppHere(true);
+        else offlineTimer.current = setTimeout(() => setOppHere(false), OFFLINE_GRACE_MS);
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") channel.track({ at: Date.now() });
       });
     return () => {
+      if (offlineTimer.current) clearTimeout(offlineTimer.current);
       sb.removeChannel(channel);
     };
   }, [id, me, loadHand, applyMatch]);
@@ -99,18 +138,19 @@ export default function OnlineMatchPage() {
   const showingLast = Boolean(lastTrick && seenTrick !== null && lastTrick.trickCount > seenTrick);
 
   // Mano appena chiusa: restano ferme entrambe le carte, poi vengono portate via.
+  const lastTrickNo = lastTrick?.trickCount ?? 0;
   useEffect(() => {
-    if (!showingLast || !lastTrick) return;
+    if (!showingLast) return;
     const t1 = setTimeout(() => setCollecting(true), SHOW_TRICK);
     const t2 = setTimeout(() => {
       setCollecting(false);
-      setSeenTrick(lastTrick.trickCount);
+      setSeenTrick(lastTrickNo);
     }, SHOW_TRICK + COLLECT_ANIM);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [showingLast, lastTrick]);
+  }, [showingLast, lastTrickNo]);
 
   if (notFound) {
     return (
@@ -128,6 +168,7 @@ export default function OnlineMatchPage() {
 
   const seat = match.player0 === me ? 0 : 1;
   const opp = seat === 0 ? match.p1 : match.p0;
+  const oppConnected = oppHere || online.has(opp.id);
 
   if (!pub) {
     return (
@@ -164,7 +205,7 @@ export default function OnlineMatchPage() {
   } else if (pendingCard || myTurn) {
     message = pub.table.length ? "Rispondi" : "Tocca a te";
   } else {
-    message = `Tocca a ${opp.username}${oppHere ? "" : " (non connesso)"}`;
+    message = `Tocca a ${opp.username}${oppConnected ? "" : " (non connesso)"}`;
   }
 
   const onPlay = async (cardId: string) => {
@@ -200,7 +241,7 @@ export default function OnlineMatchPage() {
       onExit={() => router.push("/online")}
       exitLabel="Lobby"
       oppName={opp.username}
-      oppStatus={oppHere ? "connesso" : "non connesso"}
+      oppStatus={oppConnected ? "connesso" : "non connesso"}
       oppCount={pub.handCounts[1 - seat]}
       oppCaptured={pub.captured[1 - seat]}
       myCaptured={pub.captured[seat]}
