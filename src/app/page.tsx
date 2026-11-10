@@ -30,10 +30,10 @@ export default function Home() {
           <span>Gioca online</span>
           <small>Con amici e giocatori connessi</small>
         </Link>
-        <div className={`${styles.item} ${styles.soon}`} aria-disabled="true">
+        <Link href="/scopa" className={`${styles.item} ${styles.primary}`}>
           <span>Scopa</span>
-          <small>In arrivo</small>
-        </div>
+          <small>Contro il computer</small>
+        </Link>
       </nav>
 
       <p className={styles.hint}>

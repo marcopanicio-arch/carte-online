@@ -1,0 +1,227 @@
+/* Stili specifici della scopa; il resto (barra, mano, pannelli) è condiviso con la briscola. */
+
+.vars {
+  --tw: min(17vw, 78px, 10.5dvh);
+  --pile-w: min(9vw, 36px);
+}
+.compact {
+  --tw: min(13.5vw, 62px, 8.4dvh);
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: calc(var(--pile-w) * 1.66);
+}
+.labelText {
+  font-size: 12px;
+  opacity: 0.8;
+  text-align: center;
+}
+.scopeTag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #f0c35a;
+  color: #3b2a1a;
+  font-weight: 700;
+}
+
+/* Mucchietto delle prese: si vedono le carte dell'ultima presa */
+.pile {
+  position: relative;
+  width: var(--pile-w);
+  height: calc(var(--pile-w) * 1.66);
+  flex: none;
+}
+.pileCard {
+  position: absolute;
+  inset: 0;
+}
+
+.middle {
+  flex: 1;
+  width: 100%;
+  max-width: 560px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+}
+.deckBox {
+  position: relative;
+  width: calc(var(--tw) * 0.85);
+}
+.deckBox > div:first-child > div {
+  box-shadow:
+    inset 0 0 0 1px #6e1418,
+    2px 2px 0 #e9dfc6,
+    3px 3px 0 #b9a77f,
+    5px 5px 0 #e9dfc6,
+    6px 6px 0 #b9a77f,
+    4px 8px 10px rgba(0, 0, 0, 0.4);
+}
+.deckCount {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  text-shadow: 0 1px 3px #000;
+}
+
+.tableArea {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 8px;
+  min-height: calc(var(--tw) * 1.66 * 2 + 8px);
+}
+.tableCard {
+  width: var(--tw);
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  transition:
+    translate 0.15s ease-out,
+    box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.tableCard:disabled {
+  cursor: default;
+  color: inherit;
+}
+.selectable {
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(240, 195, 90, 0.55);
+}
+.picked {
+  translate: 0 -6px;
+  box-shadow: 0 0 0 3px #f0c35a, 0 0 14px #f0c35a;
+}
+/* Carte che stanno per essere prese */
+.taking {
+  translate: 0 -4px;
+  box-shadow: 0 0 0 3px #f0c35a, 0 0 18px rgba(240, 195, 90, 0.9);
+}
+/* La carta appena giocata, prima che si porti via la presa */
+.played {
+  box-shadow: 0 0 0 3px #fff, 0 0 16px rgba(255, 255, 255, 0.7);
+}
+
+.selected {
+  translate: 0 -16px;
+}
+.selected > div {
+  box-shadow:
+    0 0 0 3px #f0c35a,
+    0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  translate: -50% -50%;
+  padding: 10px 28px;
+  border-radius: 16px;
+  background: #f0c35a;
+  color: #3b2a1a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 40px;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: pop 1.3s ease-out forwards;
+  z-index: 5;
+}
+@keyframes pop {
+  0% {
+    scale: 0.4;
+    opacity: 0;
+  }
+  15% {
+    scale: 1.12;
+    opacity: 1;
+  }
+  25% {
+    scale: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.05;
+  }
+}
+
+/* Tabella dei punti di fine mano */
+.scoreTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.scoreTable th,
+.scoreTable td {
+  padding: 7px 4px;
+  text-align: center;
+  border-bottom: 1px solid #e6dcc4;
+}
+.scoreTable th:first-child,
+.scoreTable td:first-child {
+  text-align: left;
+  color: #5c4630;
+}
+.scoreTable thead th {
+  font-size: 13px;
+  color: #1d5a39;
+}
+.scoreTable .pt {
+  display: inline-block;
+  min-width: 22px;
+  border-radius: 6px;
+  background: #1d5a39;
+  color: #fbf6e8;
+  font-weight: 700;
+  margin-left: 4px;
+}
+.scoreTable tfoot td {
+  font-weight: 700;
+  border-bottom: none;
+  font-size: 16px;
+}
+.small {
+  font-size: 12px;
+  color: #7a6448;
+}
+.targetRow {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #5c4630;
+}
+.targetBtn {
+  min-width: 46px;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 2px solid #1d5a39;
+  background: transparent;
+  color: #1d5a39;
+  font-weight: 700;
+  cursor: pointer;
+}
+.targetBtnOn {
+  background: #1d5a39;
+  color: #fbf6e8;
+}
