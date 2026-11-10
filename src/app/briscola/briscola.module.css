@@ -129,27 +129,27 @@
 
 .trick {
   position: relative;
-  height: calc(var(--table-w) * 2.5);
+  height: calc(var(--table-w) * 1.66 * 1.25);
 }
+/* Le due carte affiancate e un po' sfalsate: si vedono entrambe per intero. */
 .trickCard {
   position: absolute;
   width: var(--table-w);
-  left: calc(50% - var(--table-w) / 2);
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
   transition:
-    translate 0.4s ease-in 0.8s,
-    opacity 0.4s ease-in 0.8s;
+    translate 0.45s ease-in,
+    opacity 0.45s ease-in;
 }
 .fromTop {
   top: 0;
-  rotate: -7deg;
-  translate: 12% 0;
+  left: calc(50% - var(--table-w) - 5px);
+  rotate: -4deg;
   animation: inTop 0.35s ease-out;
 }
 .fromBottom {
   bottom: 0;
-  rotate: 6deg;
-  translate: -12% 0;
+  left: calc(50% + 5px);
+  rotate: 4deg;
   animation: inBottom 0.35s ease-out;
 }
 .toTop {

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useReducer } from "react";
-import PlayingCard, { preloadCards } from "@/components/PlayingCard";
+import { preloadCards } from "@/components/PlayingCard";
+import BriscolaTable, { vibrate } from "./BriscolaTable";
 import { randomSeed } from "@/lib/carte/cards";
 import { type Difficulty, chooseCard } from "@/lib/briscola/ai";
 import {
@@ -20,7 +21,8 @@ import styles from "./briscola.module.css";
 const HUMAN = 0;
 const CPU = 1;
 const CPU_DELAY = 750;
-const COLLECT_DELAY = 1300;
+const SHOW_TRICK = 900; // quanto restano ferme le due carte sul tavolo
+const COLLECT_ANIM = 450; // durata dell'animazione di raccolta
 
 type Record3 = { vinte: number; perse: number; pari: number };
 type Stats = Record<Difficulty, Record3>;
@@ -31,6 +33,8 @@ const EMPTY_STATS: Stats = {
 
 interface State {
   game: GameState | null;
+  /** True mentre le carte della mano appena chiusa vengono portate via. */
+  collecting: boolean;
   difficulty: Difficulty;
   dealer: number;
   stats: Stats;
@@ -39,6 +43,7 @@ interface State {
 type Action =
   | { type: "start"; difficulty: Difficulty; seed: number }
   | { type: "play"; player: number; cardId: string }
+  | { type: "beginCollect" }
   | { type: "collect" }
   | { type: "menu" };
 
@@ -51,6 +56,7 @@ function reducer(state: State, action: Action): State {
         ...state,
         difficulty: action.difficulty,
         dealer,
+        collecting: false,
         game: newGame({ numPlayers: 2, seed: action.seed, dealer }),
       };
     }
@@ -58,16 +64,18 @@ function reducer(state: State, action: Action): State {
       if (!state.game || state.game.turn !== action.player || state.game.phase !== "playing") return state;
       return { ...state, game: playCard(state.game, action.player, action.cardId) };
     }
+    case "beginCollect":
+      return state.game?.phase === "trickComplete" ? { ...state, collecting: true } : state;
     case "collect": {
       if (!state.game || state.game.phase !== "trickComplete") return state;
       const game = collectTrick(state.game);
-      if (game.phase !== "finished") return { ...state, game };
+      if (game.phase !== "finished") return { ...state, game, collecting: false };
       const w = winningTeam(game);
       const rec = { ...state.stats[state.difficulty] };
       if (w === null) rec.pari++;
       else if (w === HUMAN) rec.vinte++;
       else rec.perse++;
-      return { ...state, game, stats: { ...state.stats, [state.difficulty]: rec } };
+      return { ...state, game, collecting: false, stats: { ...state.stats, [state.difficulty]: rec } };
     }
     case "menu":
       return { ...state, game: null };
@@ -78,6 +86,7 @@ function init(): State {
   const prefs = load("briscola:prefs", { difficulty: "normale" as Difficulty });
   return {
     game: null,
+    collecting: false,
     difficulty: prefs.difficulty,
     dealer: Math.round(Math.random()),
     stats: load("briscola:stats", EMPTY_STATS),
@@ -100,29 +109,36 @@ export default function BriscolaGame() {
     return () => clearTimeout(t);
   }, [game, state.difficulty]);
 
-  // Mano completa: lascia il tempo di vedere chi prende, poi raccogli e pesca.
+  // Mano completa: prima si lasciano vedere entrambe le carte, poi si portano via e si pesca.
   useEffect(() => {
     if (game?.phase !== "trickComplete") return;
-    const t = setTimeout(() => dispatch({ type: "collect" }), COLLECT_DELAY);
+    const t = setTimeout(
+      () => dispatch(state.collecting ? { type: "collect" } : { type: "beginCollect" }),
+      state.collecting ? COLLECT_ANIM : SHOW_TRICK,
+    );
     return () => clearTimeout(t);
-  }, [game]);
+  }, [game, state.collecting]);
 
   useEffect(() => save("briscola:stats", state.stats), [state.stats]);
   useEffect(() => save("briscola:prefs", { difficulty: state.difficulty }), [state.difficulty]);
 
   if (!game) {
-    return <StartScreen stats={state.stats} difficulty={state.difficulty} onStart={(d) => dispatch({ type: "start", difficulty: d, seed: randomSeed() })} />;
+    return (
+      <StartScreen
+        stats={state.stats}
+        difficulty={state.difficulty}
+        onStart={(d) => dispatch({ type: "start", difficulty: d, seed: randomSeed() })}
+      />
+    );
   }
 
+  const myTurn = game.phase === "playing" && game.turn === HUMAN;
   const onPlay = (cardId: string) => {
-    if (game.phase !== "playing" || game.turn !== HUMAN) return;
-    try {
-      navigator.vibrate?.(12);
-    } catch {}
+    if (!myTurn) return;
+    vibrate();
     dispatch({ type: "play", player: HUMAN, cardId });
   };
 
-  const myTurn = game.phase === "playing" && game.turn === HUMAN;
   const trickPts = game.table.reduce((s, p) => s + points(p.card), 0);
   let message: string;
   if (game.phase === "trickComplete") {
@@ -134,80 +150,25 @@ export default function BriscolaGame() {
     message = "Il computer pensa…";
   }
 
-  const collectClass =
-    game.phase === "trickComplete" ? (game.trickWinner === HUMAN ? styles.toBottom : styles.toTop) : "";
-
   return (
-    <main className={styles.table}>
-      <header className={styles.bar}>
-        <button className={styles.barBtn} onClick={() => dispatch({ type: "menu" })} aria-label="Esci dalla partita">
-          ‹ Esci
-        </button>
-        <span className={styles.barTitle}>Briscola · {state.difficulty}</span>
-        <span className={styles.barInfo}>Mano {Math.min(game.trickCount + 1, 20)}/20</span>
-      </header>
-
-      <section className={styles.opponent} aria-label="Mano del computer">
-        <div className={styles.oppHand}>
-          {game.hands[CPU].map((c) => (
-            <div key={c.id} className={styles.oppCard}>
-              <PlayingCard card={null} />
-            </div>
-          ))}
-        </div>
-        <div className={styles.label}>
-          Computer · {game.captured[CPU].length} carte prese
-        </div>
-      </section>
-
-      <section className={styles.middle}>
-        <div className={styles.deckArea} aria-label={`Mazzo: ${game.deck.length} carte`}>
-          {game.deck.length > 0 && (
-            <div className={styles.briscola}>
-              <PlayingCard card={game.briscola} />
-            </div>
-          )}
-          {game.deck.length > 1 && (
-            <div className={styles.deck}>
-              <PlayingCard card={null} />
-              <span className={styles.deckCount}>{game.deck.length}</span>
-            </div>
-          )}
-          <div className={styles.trumpTag}>
-            Briscola: <strong>{game.trump}</strong>
-          </div>
-        </div>
-
-        <div className={styles.trick}>
-          {game.table.map((p) => (
-            <div
-              key={p.card.id}
-              className={`${styles.trickCard} ${p.player === HUMAN ? styles.fromBottom : styles.fromTop} ${collectClass}`}
-            >
-              <PlayingCard card={p.card} />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className={`${styles.message} ${myTurn ? styles.messageActive : ""}`} aria-live="polite">
-        {message}
-      </div>
-
-      <section className={styles.myHand} aria-label="La tua mano">
-        {game.hands[HUMAN].map((c) => (
-          <button
-            key={c.id}
-            className={`${styles.myCard} ${myTurn ? styles.playable : ""}`}
-            onClick={() => onPlay(c.id)}
-            disabled={!myTurn}
-          >
-            <PlayingCard card={c} />
-          </button>
-        ))}
-      </section>
-      <div className={styles.label}>Tu · {game.captured[HUMAN].length} carte prese</div>
-
+    <BriscolaTable
+      title={`Briscola · ${state.difficulty}`}
+      info={`Mano ${Math.min(game.trickCount + 1, 20)}/20`}
+      onExit={() => dispatch({ type: "menu" })}
+      oppName="Computer"
+      oppCount={game.hands[CPU].length}
+      oppCaptured={game.captured[CPU].length}
+      myCaptured={game.captured[HUMAN].length}
+      deckCount={game.deck.length}
+      briscola={game.briscola}
+      trump={game.trump}
+      plays={game.table.map((p) => ({ mine: p.player === HUMAN, card: p.card }))}
+      collectingTo={state.collecting ? (game.trickWinner === HUMAN ? "me" : "opp") : null}
+      message={message}
+      myTurn={myTurn}
+      myHand={game.hands[HUMAN]}
+      onPlay={onPlay}
+    >
       {game.phase === "finished" && (
         <EndScreen
           game={game}
@@ -216,7 +177,7 @@ export default function BriscolaGame() {
           onMenu={() => dispatch({ type: "menu" })}
         />
       )}
-    </main>
+    </BriscolaTable>
   );
 }
 

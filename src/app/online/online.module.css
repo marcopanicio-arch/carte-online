@@ -1,0 +1,202 @@
+.page {
+  min-height: 100dvh;
+  padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 24px);
+  background: radial-gradient(ellipse at 50% 20%, #2a7a4f 0%, #1d5a39 50%, #123d26 100%);
+  color: #f4ecd8;
+}
+.inner {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  font-size: 14px;
+}
+.barLink {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 8px 4px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  color: #fbf6e8;
+}
+.muted {
+  opacity: 0.75;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.section {
+  background: #fbf6e8;
+  color: #3b2a1a;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1d5a39;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.badge {
+  background: #b3261e;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+.empty {
+  font-size: 14px;
+  color: #7a6448;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rowMain strong {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMain small {
+  font-size: 12px;
+  color: #7a6448;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #b9ab90;
+  flex: none;
+}
+.dotOn {
+  background: #2e9d57;
+  box-shadow: 0 0 0 3px rgba(46, 157, 87, 0.2);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  min-height: 38px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 2px solid #1d5a39;
+  background: transparent;
+  color: #1d5a39;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btnPrimary {
+  background: #1d5a39;
+  color: #fbf6e8;
+}
+.btnDanger {
+  border-color: #b3261e;
+  color: #b3261e;
+}
+.btnBig {
+  width: 100%;
+  min-height: 50px;
+  font-size: 17px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #c9b892;
+  background: #fff;
+  color: #3b2a1a;
+  font-size: 16px; /* 16px evita lo zoom automatico su iPhone */
+}
+.input:focus {
+  outline: 2px solid #1d5a39;
+  border-color: #1d5a39;
+}
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 4px;
+}
+.tab {
+  min-height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #f4ecd8;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabActive {
+  background: #fbf6e8;
+  color: #1d5a39;
+}
+.error {
+  background: #f8dcd8;
+  color: #8b1d16;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.notice {
+  background: #dcefe2;
+  color: #1d5a39;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.searchRow {
+  display: flex;
+  gap: 8px;
+}

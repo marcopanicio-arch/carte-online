@@ -1,5 +1,5 @@
 // Service worker: rende il sito installabile e giocabile anche senza rete.
-const CACHE = "carte-v2";
+const CACHE = "carte-v3";
 const SUITS = ["denari", "coppe", "spade", "bastoni"];
 const CARDS = SUITS.flatMap((s) => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((r) => `/carte/${s}-${r}.webp`));
 const PRECACHE = ["/", "/briscola", "/manifest.webmanifest", "/icon.svg", "/carte/retro.webp", ...CARDS];
