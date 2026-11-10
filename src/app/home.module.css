@@ -1,0 +1,76 @@
+.home {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top) + 40px) 16px calc(env(safe-area-inset-bottom) + 24px);
+  background: radial-gradient(ellipse at 50% 30%, #2a7a4f 0%, #1d5a39 50%, #123d26 100%);
+  text-align: center;
+}
+.fan {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.fanCard {
+  width: min(24vw, 96px);
+  margin: 0 -10px;
+  transform-origin: 50% 120%;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
+}
+.title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(30px, 9vw, 42px);
+  color: #fbf6e8;
+}
+.subtitle {
+  margin-top: 6px;
+  opacity: 0.8;
+}
+.menu {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 32px;
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  text-decoration: none;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.item span {
+  font-size: 19px;
+  font-weight: 650;
+}
+.item small {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.primary {
+  background: #fbf6e8;
+  color: #1d5a39;
+  border-color: #fbf6e8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.primary:active {
+  transform: scale(0.98);
+}
+.soon {
+  opacity: 0.55;
+}
+.hint {
+  margin-top: auto;
+  padding-top: 32px;
+  max-width: 380px;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.75;
+}
