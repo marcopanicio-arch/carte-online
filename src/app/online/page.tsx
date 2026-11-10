@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MatchRow } from "@/lib/briscola/online";
+import { GAME_NAMES, type GameKind, type MatchRow } from "@/lib/briscola/online";
 import { api, supabase, supabaseConfigured } from "@/lib/supabase/client";
 import { type Profile, useOnline } from "./OnlineProvider";
 import styles from "./online.module.css";
@@ -27,6 +27,8 @@ export default function Lobby() {
   const [matches, setMatches] = useState<LobbyMatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Giocatore che sto sfidando: si apre la scelta del gioco.
+  const [challenge, setChallenge] = useState<Profile | null>(null);
   // Inviti che ho mandato: quando uno diventa "active" vuol dire che è stato accettato.
   const myInvites = useRef<Set<string>>(new Set());
 
@@ -124,8 +126,10 @@ export default function Lobby() {
 
   const others = [...online.values()].filter((p) => p.id !== me).sort((a, b) => a.username.localeCompare(b.username));
 
-  const invite = (p: Profile) =>
-    run(`invite:${p.id}`, () => api({ action: "invite", opponentId: p.id }));
+  const invite = (p: Profile, game: GameKind) => {
+    setChallenge(null);
+    return run(`invite:${p.id}`, () => api({ action: "invite", opponentId: p.id, game }));
+  };
   const addFriend = (p: Profile) =>
     run(`friend:${p.id}`, async () => {
       const { error } = await supabase().from("friendships").insert({ requester: me, addressee: p.id });
@@ -176,7 +180,7 @@ export default function Lobby() {
     <button
       className={`${styles.btn} ${styles.btnPrimary}`}
       disabled={busyWith.has(p.id) || busy === `invite:${p.id}`}
-      onClick={() => invite(p)}
+      onClick={() => setChallenge(p)}
     >
       Sfida
     </button>
@@ -209,7 +213,7 @@ export default function Lobby() {
               <div key={m.id} className={styles.row}>
                 <div className={styles.rowMain}>
                   <strong>{m.p0.username}</strong>
-                  <small>Briscola a 2</small>
+                  <small>Vuole giocare a {GAME_NAMES[m.game] ?? "Briscola"}</small>
                 </div>
                 <button
                   className={styles.btn}
@@ -245,7 +249,9 @@ export default function Lobby() {
                 <div key={m.id} className={styles.row}>
                   <span className={`${styles.dot} ${online.has(opp.id) ? styles.dotOn : ""}`} />
                   <div className={styles.rowMain}>
-                    <strong>contro {opp.username}</strong>
+                    <strong>
+                      {GAME_NAMES[m.game] ?? "Briscola"} contro {opp.username}
+                    </strong>
                     <small>{myTurn ? "Tocca a te" : `Tocca a ${opp.username}`}</small>
                   </div>
                   <button
@@ -265,7 +271,7 @@ export default function Lobby() {
               <div key={m.id} className={styles.row}>
                 <div className={styles.rowMain}>
                   <strong>{m.p1.username}</strong>
-                  <small>In attesa che accetti…</small>
+                  <small>{GAME_NAMES[m.game] ?? "Briscola"} · in attesa che accetti…</small>
                 </div>
                 <button
                   className={styles.btn}
@@ -348,6 +354,33 @@ export default function Lobby() {
 
         <PlayerSearch me={me!} relatedIds={relatedIds} onAdd={addFriend} />
       </div>
+
+      {challenge && (
+        <div className={styles.sheetBackdrop} onClick={() => setChallenge(null)}>
+          <div
+            className={styles.sheet}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Sfida ${challenge.username}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.sheetTitle}>Sfida {challenge.username}</div>
+            <p className={styles.empty}>A cosa volete giocare?</p>
+            {(Object.keys(GAME_NAMES) as GameKind[]).map((g) => (
+              <button
+                key={g}
+                className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBig}`}
+                onClick={() => invite(challenge, g)}
+              >
+                {GAME_NAMES[g]}
+              </button>
+            ))}
+            <button className={`${styles.btn} ${styles.btnBig}`} onClick={() => setChallenge(null)}>
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -2,186 +2,26 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { preloadCards } from "@/components/PlayingCard";
-import type { Card } from "@/lib/carte/cards";
-import { points } from "@/lib/briscola/engine";
-import type { MatchRow, PublicState } from "@/lib/briscola/online";
-import { api, supabase } from "@/lib/supabase/client";
-import { sounds } from "@/lib/sound";
-import BriscolaTable, { type TablePlay, vibrate } from "../../../briscola/BriscolaTable";
-import tableStyles from "../../../briscola/briscola.module.css";
-import { type Profile, useOnline } from "../../OnlineProvider";
+import { GAME_NAMES } from "@/lib/briscola/online";
+import { useOnline } from "../../OnlineProvider";
 import styles from "../../online.module.css";
-
-const SHOW_TRICK = 900;
-const COLLECT_ANIM = 450;
-/** Controllo di riserva: se un aggiornamento in tempo reale va perso, lo recuperiamo entro pochi secondi. */
-const POLL_MS = 2500;
-/** L'avversario risulta "non connesso" solo dopo un'assenza prolungata, non per un attimo di rete. */
-const OFFLINE_GRACE_MS = 12000;
-
-type FullMatch = MatchRow & { p0: Profile; p1: Profile };
+import BriscolaOnline from "./BriscolaOnline";
+import ScopaOnline from "./ScopaOnline";
+import { useOnlineMatch } from "./useOnlineMatch";
 
 export default function OnlineMatchPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { ready, session, online } = useOnline();
   const me = session?.user.id ?? null;
-
-  const [match, setMatch] = useState<FullMatch | null>(null);
-  const [hand, setHand] = useState<Card[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [pendingCard, setPendingCard] = useState<Card | null>(null);
-  // Si parte ottimisti: se l'avversario non c'è, lo dirà la presenza dopo il periodo di tolleranza.
-  const [oppHere, setOppHere] = useState(true);
-  // Numero dell'ultima mano chiusa che ho già visto portare via.
-  const [seenTrick, setSeenTrick] = useState<number | null>(null);
-  const [collecting, setCollecting] = useState(false);
-  const versionRef = useRef(-1);
-  const offlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { match, hand, setHand, notFound, oppHere, applyMatch, loadHand } = useOnlineMatch(id, me);
 
   useEffect(() => preloadCards(), []);
-
   useEffect(() => {
     if (ready && !session) router.replace("/online/accedi");
   }, [ready, session, router]);
-
-  const loadHand = useCallback(() => {
-    if (!me) return;
-    supabase()
-      .from("match_hands")
-      .select("cards")
-      .eq("match_id", id)
-      .eq("player", me)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) setHand(data.cards as Card[]);
-      });
-  }, [id, me]);
-
-  /** Applica uno stato della partita solo se è più recente di quello che ho. Ritorna true se l'ha applicato. */
-  const applyMatch = useCallback((row: Partial<MatchRow>) => {
-    if (row.version === undefined || row.version <= versionRef.current) return false;
-    versionRef.current = row.version;
-    setMatch((prev) => (prev ? { ...prev, ...row } : prev));
-    return true;
-  }, []);
-
-  const refresh = useCallback(() => {
-    supabase()
-      .from("matches")
-      .select("status, public, version, winner, result")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data && applyMatch(data as Partial<MatchRow>)) loadHand();
-      });
-  }, [id, applyMatch, loadHand]);
-
-  // Rete di sicurezza: controllo periodico e al ritorno sull'app (i telefoni sospendono le pagine in background).
-  useEffect(() => {
-    if (!me) return;
-    const t = setInterval(refresh, POLL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-    };
-  }, [me, refresh]);
-
-  // Caricamento iniziale e aggiornamenti in tempo reale della partita.
-  useEffect(() => {
-    if (!me) return;
-    const sb = supabase();
-    sb.from("matches")
-      .select("*, p0:profiles!matches_player0_fkey(id, username), p1:profiles!matches_player1_fkey(id, username)")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!data) return setNotFound(true);
-        const row = data as unknown as FullMatch;
-        versionRef.current = row.version;
-        setMatch(row);
-        setSeenTrick(row.public?.lastTrick?.trickCount ?? 0);
-      });
-    loadHand();
-
-    const channel = sb
-      .channel(`partita:${id}`, { config: { presence: { key: me } } })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${id}` }, (payload) => {
-        if (applyMatch(payload.new as MatchRow)) loadHand();
-      })
-      .on("presence", { event: "sync" }, () => {
-        const here = Object.keys(channel.presenceState()).some((k) => k !== me);
-        if (offlineTimer.current) clearTimeout(offlineTimer.current);
-        offlineTimer.current = null;
-        if (here) setOppHere(true);
-        else offlineTimer.current = setTimeout(() => setOppHere(false), OFFLINE_GRACE_MS);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") channel.track({ at: Date.now() });
-      });
-    return () => {
-      if (offlineTimer.current) clearTimeout(offlineTimer.current);
-      sb.removeChannel(channel);
-    };
-  }, [id, me, loadHand, applyMatch]);
-
-  const pub: PublicState | null = match?.public ?? null;
-  const lastTrick = pub?.lastTrick ?? null;
-  const showingLast = Boolean(lastTrick && seenTrick !== null && lastTrick.trickCount > seenTrick);
-
-  // Mano appena chiusa: restano ferme entrambe le carte, poi vengono portate via.
-  const lastTrickNo = lastTrick?.trickCount ?? 0;
-  useEffect(() => {
-    if (!showingLast) return;
-    const t1 = setTimeout(() => setCollecting(true), SHOW_TRICK);
-    const t2 = setTimeout(() => {
-      setCollecting(false);
-      setSeenTrick(lastTrickNo);
-    }, SHOW_TRICK + COLLECT_ANIM);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [showingLast, lastTrickNo]);
-
-  // Suoni: carta dell'avversario, mia presa, fine partita.
-  const seatNow = match && me ? (match.player0 === me ? 0 : 1) : 0;
-  const oppPlays = pub ? pub.trickCount + (pub.table.some((p) => p.player !== seatNow) ? 1 : 0) : 0;
-  const prevOppPlays = useRef<number | null>(null);
-  const hasPub = Boolean(pub);
-  useEffect(() => {
-    if (!hasPub) return;
-    if (prevOppPlays.current !== null && oppPlays > prevOppPlays.current) sounds.play();
-    prevOppPlays.current = oppPlays;
-  }, [oppPlays, hasPub]);
-  useEffect(() => {
-    if (!showingLast || !lastTrick || lastTrick.winner !== seatNow) return;
-    const pts = lastTrick.plays.reduce((s, p) => s + points(p.card), 0);
-    if (pts > 0) setTimeout(() => sounds.take(pts), 350);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per mano
-  }, [showingLast, lastTrickNo]);
-  const finishedNow = match?.status === "finished" && !showingLast;
-  const prevFinished = useRef<boolean | null>(null);
-  const loaded = Boolean(match);
-  useEffect(() => {
-    if (!loaded) return;
-    if (prevFinished.current === false && finishedNow && match) {
-      if (match.winner === null) sounds.tie();
-      else if (match.winner === seatNow) sounds.win();
-      else sounds.lose();
-    }
-    prevFinished.current = finishedNow;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo quando la partita finisce
-  }, [finishedNow, loaded]);
 
   if (notFound) {
     return (
@@ -199,14 +39,15 @@ export default function OnlineMatchPage() {
 
   const seat = match.player0 === me ? 0 : 1;
   const opp = seat === 0 ? match.p1 : match.p0;
-  const oppConnected = oppHere || online.has(opp.id);
 
-  if (!pub) {
+  if (!match.public) {
     return (
       <main className={styles.page}>
         <div className={styles.inner}>
           <h1 className={styles.title}>In attesa di {opp.username}</h1>
-          <p className={styles.muted}>La partita parte appena accetta l&apos;invito.</p>
+          <p className={styles.muted}>
+            {GAME_NAMES[match.game]}: la partita parte appena accetta l&apos;invito.
+          </p>
           <Link href="/online" className={`${styles.btn} ${styles.btnBig}`}>
             Torna alla lobby
           </Link>
@@ -215,133 +56,15 @@ export default function OnlineMatchPage() {
     );
   }
 
-  const active = match.status === "active";
-  const myTurn = active && !showingLast && !pendingCard && pub.turn === seat;
-
-  let plays: TablePlay[];
-  if (showingLast && lastTrick) {
-    plays = lastTrick.plays.map((p) => ({ mine: p.player === seat, card: p.card }));
-  } else {
-    plays = pub.table.map((p) => ({ mine: p.player === seat, card: p.card }));
-    if (pendingCard) plays.push({ mine: true, card: pendingCard });
-  }
-
-  let message: string;
-  if (showingLast && lastTrick) {
-    const pts = lastTrick.plays.reduce((s, p) => s + points(p.card), 0);
-    const who = lastTrick.winner === seat ? "Prendi tu" : `Prende ${opp.username}`;
-    message = pts > 0 ? `${who} · ${pts} punti` : who;
-  } else if (!active) {
-    message = "Partita finita";
-  } else if (pendingCard || myTurn) {
-    message = pub.table.length ? "Rispondi" : "Tocca a te";
-  } else {
-    message = `Tocca a ${opp.username}${oppConnected ? "" : " (non connesso)"}`;
-  }
-
-  const onPlay = async (cardId: string) => {
-    const card = hand.find((c) => c.id === cardId);
-    if (!myTurn || !card) return;
-    vibrate();
-    sounds.play();
-    setError(null);
-    setPendingCard(card);
-    setHand((h) => h.filter((c) => c.id !== cardId));
-    try {
-      const res = await api<{ public: PublicState; hand: Card[]; version: number }>({
-        action: "play",
-        matchId: match.id,
-        cardId,
-      });
-      applyMatch({ public: res.public, version: res.version, status: res.public.finished ? "finished" : "active" });
-      setHand(res.hand);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      loadHand();
-    } finally {
-      setPendingCard(null);
-    }
+  const ctx = {
+    match,
+    seat: seat as 0 | 1,
+    opp,
+    oppConnected: oppHere || online.has(opp.id),
+    hand,
+    setHand,
+    applyMatch,
+    loadHand,
   };
-
-  const shownHand = hand;
-  const finishedShown = match.status === "finished" && !showingLast;
-
-  return (
-    <BriscolaTable
-      title="Briscola online"
-      info={`Mano ${Math.min(pub.trickCount + 1, 20)}/20`}
-      onExit={() => router.push("/online")}
-      exitLabel="Lobby"
-      oppName={opp.username}
-      oppStatus={oppConnected ? "connesso" : "non connesso"}
-      oppCount={pub.handCounts[1 - seat]}
-      oppCaptured={pub.captured[1 - seat]}
-      myCaptured={pub.captured[seat]}
-      deckCount={pub.deckCount}
-      briscola={pub.briscola}
-      trump={pub.trump}
-      plays={plays}
-      collectingTo={showingLast && collecting && lastTrick ? (lastTrick.winner === seat ? "me" : "opp") : null}
-      drawFirst={lastTrick ? (lastTrick.winner === seat ? "me" : "opp") : pub.turn === seat ? "me" : "opp"}
-      message={error ?? message}
-      myTurn={myTurn}
-      myHand={shownHand}
-      onPlay={onPlay}
-    >
-      {finishedShown && <OnlineEnd match={match} seat={seat} opp={opp} />}
-    </BriscolaTable>
-  );
-}
-
-function OnlineEnd({ match, seat, opp }: { match: FullMatch; seat: 0 | 1; opp: Profile }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const pts = match.public?.points;
-  const forfeit = match.result === "forfeit";
-
-  let title: string;
-  if (match.winner === null) title = "Pareggio!";
-  else if (match.winner === seat) title = forfeit ? `${opp.username} ha abbandonato` : "Hai vinto!";
-  else title = forfeit ? "Hai abbandonato" : "Hai perso";
-
-  const rematch = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      await api({ action: "invite", opponentId: opp.id });
-      router.push("/online");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className={tableStyles.overlay} role="dialog" aria-modal="true" aria-label={title}>
-      <div className={tableStyles.panel}>
-        <h2 className={tableStyles.panelTitle}>{title}</h2>
-        {pts && (
-          <div className={tableStyles.score}>
-            <div>
-              <strong>{pts[seat]}</strong>
-              <span>Tu</span>
-            </div>
-            <div className={tableStyles.scoreSep}>–</div>
-            <div>
-              <strong>{pts[1 - seat]}</strong>
-              <span>{opp.username}</span>
-            </div>
-          </div>
-        )}
-        {msg && <p className={tableStyles.panelText}>{msg}</p>}
-        <button className={`${tableStyles.bigBtn} ${tableStyles.bigBtnPrimary}`} onClick={rematch} disabled={busy}>
-          Chiedi la rivincita
-        </button>
-        <button className={tableStyles.bigBtn} onClick={() => router.push("/online")}>
-          Torna alla lobby
-        </button>
-      </div>
-    </div>
-  );
+  return match.game === "scopa" ? <ScopaOnline {...ctx} /> : <BriscolaOnline {...ctx} />;
 }

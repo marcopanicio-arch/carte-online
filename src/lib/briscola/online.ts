@@ -2,6 +2,7 @@
 // (mazzo e mani) e pubblica solo questa "vista", senza le carte nascoste.
 
 import type { Card, Suit } from "../carte/cards";
+import type { ScopaPublic } from "../scopa/online";
 import { type GameState, type Play, teamPoints, winningTeam } from "./engine";
 
 export interface PublicState {
@@ -41,13 +42,17 @@ export { winningTeam };
 
 export type MatchStatus = "invited" | "active" | "finished" | "declined" | "cancelled";
 
+export type GameKind = "briscola" | "scopa";
+export const GAME_NAMES: Record<GameKind, string> = { briscola: "Briscola", scopa: "Scopa" };
+
 export interface MatchRow {
   id: string;
-  game: string;
+  game: GameKind;
   player0: string;
   player1: string;
   status: MatchStatus;
-  public: PublicState | null;
+  /** Vista pubblica: PublicState per la briscola, ScopaPublic per la scopa. */
+  public: PublicState | ScopaPublic | null;
   version: number;
   winner: number | null;
   result: string | null;
